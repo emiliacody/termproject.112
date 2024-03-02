@@ -1,0 +1,575 @@
+echo "# termproject.112" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/emiliacody/termproject.112.git
+git push -u origin main
+
+from cmu_graphics import *
+import math
+import random
+from PIL import Image
+import os, pathlib
+import copy
+
+# onAppStart initializes values every time the game restarts
+def onAppStart(app):
+    app.width = 1500
+    app.height = 900
+    app.rows = 8
+    app.cols = 8
+    app.side = 500
+    app.scotty = Scotty(app)
+    app.maze = Maze(app)
+    app.stepsPerSecond = 70
+    app.score = 0
+    app.begin = False
+    #CITATION: 
+    #https://www.cleanpng.com/png-scottish-terrier-cairn-terrier-
+    # american-pit-bull-t-6956887/
+    app.image = Image.open('scootyAnimate.png')
+    app.image = CMUImage(app.image)
+    app.nodes = app.maze.table
+    app.newDict = rightLeft(app)
+    app.canUp = False
+    app.canDown = False
+    app.canRight = False
+    app.canLeft = False
+    app.stepSize = 1
+    app.stepsPerSecond = 30
+    app.treat = Treat(app)
+    app.powerup = Powerup(app)
+    app.background = 'beige'
+    app.treatList = [[True,True,True,True,True,True, True, True],
+                     [True,True,True,True,True,True, True, True],
+                     [True,True,True,True,True,True, True, True],
+                     [True,True,True,True,True,True, True, True],
+                     [True,True,True,True,True,True, True, True],
+                     [True,True,True,True,True,True, True, True],
+                     [True,True,True,True,True,True, True, True],
+                     [True,True,True,True,True,True, True, True]]
+    app.updateScore = False
+    app.win = False
+    app.bagpipe = Bagpipe(app)
+    app.tracker = dict()
+    app.gameMode = 'Pause'
+    app.bagpipe_web = generate_bagpipe_web(8,8)
+    app.web_node = 64
+    x,y = getGraphCoords(app.web_node)
+    app.bagpipe_x = x
+    app.bagpipe_y = y
+    app.bagpipeSpeed = 2
+    app.path = getScottyPath(app,app.bagpipe_web,app.web_node)
+    app.scotty_row, app.scotty_col = convertCoordsToNode(app.scotty, 
+                                                         app.scotty.x, 
+                                                         app.scotty.y)
+
+#### BAGPIPE ENEMY (Ghost) #####
+
+def generate_bagpipe_web(rows, cols):
+    bagpipe_web = dict()
+    for r in range(rows):
+        for c in range(cols):
+            key = r * 10 + c
+            neighbors = []
+            if c > 0:
+                neighbors.append(key - 1)
+            if c < cols - 1:
+                neighbors.append(key + 1)
+            if r > 0:
+                neighbors.append(key - 10)
+            if r < rows - 1:
+                neighbors.append(key + 10)
+            bagpipe_web[key] = sorted(neighbors)
+    return bagpipe_web
+
+def move_bagpipe(app, start, end):
+    if app.win == False:
+        if start == end:
+            return
+        dx = 1 if start < end and start // 10 == end // 10 else -1
+        dy = 1 if start < end and start % 10 == end % 10 else -1
+        if start // 10 == end // 10:
+            app.bagpipe_x += dx * app.bagpipeSpeed
+        if start % 10 == end % 10:
+            app.bagpipe_y += dy * app.bagpipeSpeed
+
+def getScottyPath(app,graph,currNode):
+    endNode = findScottyNode(app,graph,app.scotty.x,app.scotty.y)
+    path = bfs(currNode,endNode,[(currNode, [currNode],)],graph)
+    return path
+
+def findScottyNode(app,graph,sX,sY):
+    bestDistance = None
+    bestNode = None
+    if ((abs(app.bagpipe_x-app.scotty.x))<40 and 
+        (abs(app.bagpipe_y-app.scotty.y))<40):
+        app.gameMode = 'End'
+
+    for parent in graph:
+        for node in graph[parent]:
+            x,y = getGraphCoords(node)
+            length = distance(x,y,sX,sY)
+            if bestDistance == None or length<bestDistance:
+                bestDistance = length
+                bestNode = node
+    return bestNode
+
+#CITATION: 
+# Researched bfs methods, from this site:
+#https://en.wikipedia.org/wiki/Breadth-first_search
+def bfs(start, end, queue, graph):
+    newQueue = copy.deepcopy(queue)  
+    visited = set() 
+    while newQueue:
+        node, path = newQueue.pop(0)
+        if node == end:
+            return path + [end]  
+        if node not in visited:
+            visited.add(node)  
+            for neighbour in graph[node]:
+                if neighbour not in path:
+                    newQueue.append((neighbour, path + [neighbour]))
+    return [start] if start != end else [end]
+
+def getGraphCoords(node):
+    x = 93.75 + 62.5*((node%10)+1) + 1500//4
+    y = 62.5*((node//10)+1) + 125 + 62.5
+    if node == 0:
+        pass
+    return (x,y)
+
+def distance(x0,y0,x1,y1):
+    return ((x0-x1)**2+(y0-y1)**2)**0.5
+
+def update_position_and_path(app, path_index):
+        x, y = getGraphCoords(app.path[path_index])
+        app.web_node = app.path[path_index]
+        app.bagpipe_x = x
+        app.bagpipe_y = y
+        app.path = getScottyPath(app, app.bagpipe_web, app.web_node)
+
+def chaseScotty(app):
+    if len(app.path) == 1:
+        update_position_and_path(app, 0)
+    else:
+        next_x, next_y = getGraphCoords(app.path[1])
+        if abs(app.bagpipe_x - next_x) < 1 and abs(app.bagpipe_y - next_y) < 1:
+            update_position_and_path(app, 1)
+        else:
+            move_bagpipe(app, app.path[0], app.path[1])
+
+
+def redrawAll(app):
+    drawLabel('SCOTTY-MAN!', app.width/2, 50, size=60, fill='red', font='didot', 
+              bold=True)
+
+    if app.gameMode == 'End':
+        drawLabel('You lose! Press r to restart.', app.width/2, 800, size=50, 
+                  font='didot')
+
+    if app.begin:
+        drawLabel(f'SCORE: {app.scotty.score}', app.width/2, 150, size=30, 
+                  font='didot')
+        app.maze.draw(app.width/2, app.height/2, app.side)
+        app.scotty.draw()
+        app.bagpipe.draw()
+        if app.win == True:
+            drawLabel('You Win! Press r to play again.', app.width/2, 800, size = 50, font = 'didot')
+        
+        #second 2d list w dimensions as map filled with true
+        #set row col to False when equal
+        for row in range(app.rows):
+            for col in range(app.cols):
+                app.treatList[0][0] = False
+                if convertCoordsToNode(app.scotty, app.scotty.x, app.scotty.y) == (row, col):
+                    app.treatList[row][col] = False
+
+                if app.treatList[row][col] == True:
+                    app.treat.drawTreat(app.treat.x + col * 62.5, 31.25 + 
+                                        app.treat.y + row * 62.5)
+
+                if app.powerup.collided():
+                    #app.scotty.score+=2
+                    app.powerup.poweredUp = True
+
+                if app.powerup.poweredUp == False:
+                    # Only draw the power-up at its current position
+                    if (app.powerup.row, app.powerup.col) == (row, col):
+                        app.powerup.drawPowerup(app.powerup.x + col * 62.5, 31.25 + app.powerup.y + row * 62.5)
+
+    else:
+      
+        drawImage(app.image, app.width/2, app.height/2, align='center')
+        drawLabel('SCOTTY-MAN!', app.width/2, 50, size=60, fill='red', 
+                  font='didot', bold=True)
+        drawLabel('Click Scotty to Begin!', app.width/2, 120, size=30, 
+                  font='didot')
+
+
+def convertNodeToCoords(self, row, col):
+    
+    x = (self.app.width // 2 - 250 + col * self.app.scotty.cellSize + 
+         self.app.scotty.cellSize // 2)
+    y = (self.app.height // 2 - 250 + row * self.app.scotty.cellSize + 
+         self.app.scotty.cellSize // 2)
+    return x, y
+    
+def convertCoordsToNode(self, row,col):
+    col = (self.x-(self.app.width//2 -250 + self.cellSize // 2))//self.cellSize
+    row = (self.y-(self.app.height//2 -250 + self.cellSize // 2))//self.cellSize
+    return (row,col)
+
+def rightLeft(app):
+    newDict = dict()
+    for node in app.nodes:
+        newDict[node] = set()
+        for nodeValues in app.nodes[node]:
+            nRow, nCol = node
+            row,col = nodeValues
+            dRow = row - nRow
+            dCol = col - nCol
+            if dRow == 0 and dCol == 1:
+                newDict[node].add('right')
+            elif dRow == 0 and dCol == -1:
+                newDict[node].add('left')
+            elif dRow == -1 and dCol == 0:
+                newDict[node].add('up')
+            elif dRow == 1 and dCol == 0:
+                newDict[node].add('down')
+    return newDict
+        
+def onKeyPress(app, key):
+#USE BUT CHOPPY
+    app.canUp = False
+    app.canDown = False
+    app.canLeft = False
+    app.canRight = False
+
+    if app.scotty.touchNode():
+        dirs = app.newDict[app.scotty.extractNode()]
+        app.canUp = 'up' in dirs
+        app.canDown = 'down' in dirs
+        app.canLeft = 'left' in dirs
+        app.canRight = 'right' in dirs
+
+    if key == 'right' and app.canRight:
+        app.scotty.col+=1
+        #self.app.scotty.updateCoord(app.scotty.col)
+    if key == 'up' and app.canUp:
+        app.scotty.row-=1
+        #app.scotty.row -= app.stepSize
+    if key == 'down' and app.canDown:
+        app.scotty.row+=1
+        #app.scotty.row += app.stepSize
+    if key == 'left' and app.canLeft:
+        app.scotty.col-=1
+        #app.scotty.col -= app.stepSize
+    if key == 'r':
+        onAppStart(app)
+    app.scotty.updateCoords()
+
+
+def onMousePress(app, mouseX, mouseY):
+    if (app.width/2 - 220 < mouseX < app.width/2 + 200 and app.height/2 - 
+        150< mouseY < app.height/2 + 150):
+        app.begin = True
+        app.scotty.updateCoords()
+
+        ######## UPDATE ######
+        app.gameMode = 'Start'
+
+    
+class Scotty:
+    def __init__(self, app):
+        self.row = 0
+        self.col = 0
+        self.sideSize = app.side
+        self.app = app
+        self.cellSize = self.getCellSize()
+        # standardize self.x
+        self.x = app.width/2 -250 + self.cellSize / 2
+        self.y =  app.height/2 -250 + self.cellSize / 2
+        self.lives = 5
+        self.dead = False
+        self.overlapped = False
+        #CITATION: 
+        # https://stock.adobe.com/search?k=%22scottie+dog%22&asset_id=310035367
+        # self.image = Image.open('scottyDog.jpg')
+        # self.image = CMUImage(self.image)
+        self.image = Image.open('scootyAnimate.png')
+        self.imageFlipped = self.image.transpose(Image.FLIP_LEFT_RIGHT)
+        self.image = CMUImage(self.imageFlipped)
+        self.collectTreat = False
+        self.stepSize = 5
+        self.targetPosition = None  # Initialize target position to None
+        self.score = 0
+
+
+    def onTreat(self, app):
+        treatPos = self.app.treat.treat_positions
+        newX, newY = self.treat.convertCoordsToNode(app, self.x, self.y)
+        if (newX, newY) in treatPos:
+            self.app.treat_positions.remove((newX, newY))
+            
+        
+    def updateCoords(self):
+        self.x = (self.app.width/2 - 250 + self.col * self.cellSize + 
+                  self.cellSize/2)
+        self.y = (self.app.height/2 - 250 + self.row * self.cellSize +
+                   self.cellSize/2)
+
+    def draw(self):
+        drawImage(self.image, self.x-20, self.y-40, width=30,height=30)
+    
+    def getCellLeftTop(self):
+        cellSize = self.getCellSize()
+        cellLeft = self.app.width/2-250 + self.col * cellSize
+        cellTop = self.app.height/2-250 + self.row * cellSize
+        return (cellLeft, cellTop)
+
+    def getCellSize(self):
+        cellSize = self.sideSize / self.app.rows
+        print(cellSize)
+        return cellSize
+    
+    def touchNode(self):
+        colTest = ((self.x-(self.app.width/2 -250 + self.cellSize / 2))
+                   /self.cellSize)
+        rowTest = ((self.y-(self.app.height/2 -250 + self.cellSize / 2))
+                   /self.cellSize)
+        return (rowTest,colTest) in self.app.nodes
+
+    def extractNode(self):
+        col = ((self.x-(self.app.width/2 -250 + self.cellSize / 2))
+                /self.cellSize)
+        row = ((self.y-(self.app.height/2 -250 + self.cellSize / 2))
+               /self.cellSize)
+        return (row,col)
+
+#scotty can get a tennis ball to get up to three extra points
+class Powerup:
+
+    def __init__(self, app):
+        self.app = app
+        self.sideSize = app.side
+        self.cellSize = self.getCellSize()
+        self.x = app.width / 2 - 250 + app.scotty.cellSize / 2
+        self.y = app.height / 2 - 250 + app.scotty.cellSize / 2
+        self.image = Image.open('transparentBall.png')
+        self.image = CMUImage(self.image)
+        self.poweredUp = False
+        self.randomizePosition()
+
+    def randomizePosition(self):
+        self.row = random.randint(0, self.app.rows - 1)
+        self.col = random.randint(0, self.app.cols - 1)
+
+    def collided(self):
+        if (convertCoordsToNode(self.app.scotty,self.app.scotty.x,
+                                self.app.scotty.y) == (self.row, self.col)):
+        
+           return True
+           
+           
+            
+    def drawPowerup(self, x, y):
+        drawImage(self.image, x - 20, y - 40, width=30, height=30)
+
+    def getCellLeftTop(self):
+        cellSize = self.getCellSize()
+        cellLeft = self.app.width / 2 - 250 + self.col * cellSize
+        cellTop = self.app.height / 2 - 250 + self.row * cellSize
+        return (cellLeft, cellTop)
+
+    def getCellSize(self):
+        cellSize = self.sideSize / self.app.rows
+        return cellSize
+
+
+
+class Treat:
+
+    def __init__(self, app):
+        self.app = app
+        self.treats = set()
+        self.sideSize = app.side
+        self.image = Image.open('dogBone.png')
+        self.image = CMUImage(self.image)
+        self.cellSize = self.getCellSize()
+        self.x = app.width/2 -250 + self.cellSize / 2
+        self.y =  app.height/2 -250 + self.cellSize / 2
+
+
+    def drawTreat(self, x, y):
+        drawImage(self.image, x-20, y-40, width=30, height=30)
+
+    def convertNodeToCoords(self, node):
+        row, col = node
+        x = (self.app.width // 2 - 250 + col * self.app.scotty.cellSize +
+                self.app.scotty.cellSize // 2)
+        y = (self.app.height // 2 - 250 + row * self.app.scotty.cellSize + 
+                self.app.scotty.cellSize // 2)
+        return x, y
+    
+    def convertCoordsToNode(self, row, col):
+        col = ((self.x-(self.app.width//2 -250 + self.cellSize // 2))
+               //self.cellSize)
+        row = ((self.y-(self.app.height//2 -250 + self.cellSize // 2))
+                //self.cellSize)
+        return (row,col)
+    def getCellLeftTop(self):
+        cellSize = self.getCellSize()
+        cellLeft = self.app.width/2-250 + self.col * cellSize
+        cellTop = self.app.height/2-250 + self.row * cellSize
+        return (cellLeft, cellTop)
+
+    def getCellSize(self):
+        cellSize = self.sideSize / self.app.rows
+        print(cellSize)
+        return cellSize
+    
+
+class Maze:
+    # CITATION: I began my research with reading from this site, recommended by
+    # 15-112: https://en.wikipedia.org/wiki/Maze_generation_algorithm 
+
+    def __init__(self, app):
+        self.app = app
+        self.rows = 8
+        self.cols = 8
+        self.shiftX = app.width/2 - 250
+        self.shiftY = app.height/2 - 250
+        self.table = dict()
+        for row in range(self.rows):
+            for col in range(self.cols):
+                self.addNode((row,col))
+        self.genMaze() 
+
+    def addNode(self, node):
+        self.table[node] = set()
+
+    def addEdge(self, node1, node2):
+        self.table[node1].add(node2)
+        self.table[node2].add(node1)
+
+#citation : Fundamentals of Maze Generation from 15-112 Website Resources on 
+#           Maze Generation
+    '''define backtracker (location ,visited) :
+2 Add the current location to the visited set
+3 Loop over all four neighbors of the current location in random order
+4 Skip if the neighbor has already been visited
+5 Add a passage from the current location to the neighbor
+6 Call backtracker ( neighbor , visited )'''
+
+    def genMaze(self):
+        visited = set()
+        return self.backtrack((0,0), visited)
+
+    def backtrack(self, node, visited):
+        r, c = node
+        visited.add(node)
+        neighbors = [(r,c-1), (r-1, c),(r,c+1),(r+1,c)]
+        #CITATION: https://www.w3schools.com/python/ref_random_shuffle.asp
+        random.shuffle(neighbors)
+        for neighbor in neighbors:
+            nR, nC = neighbor
+            if (0 <= nR < self.rows and 
+                0 <= nC < self.cols and 
+                neighbor not in visited):
+                self.addEdge(node, neighbor)
+                self.backtrack(neighbor,visited)
+
+    def draw(self, x, y, side):
+        a = side/self.rows
+        for row in range(self.rows):
+            for col in range(self.cols):
+                node = (row,col)
+                neighbors = self.table[node]
+                leftN, topN, rightN, bottomN = [(row,col-1),(row-1, col),
+                                                (row,col+1),(row+1,col)]
+
+                if topN not in neighbors:
+                    #app.canPassUp = True
+                    drawLine(col*a + self.shiftX, row*a + self.shiftY, 
+                             col*a + a + self.shiftX, row*a + self.shiftY, 
+                             fill = 'red', lineWidth = 5)
+                if bottomN not in neighbors:
+                    #app.canPassDown = True
+                    drawLine(col*a + self.shiftX, row*a + a + self.shiftY, 
+                             col*a + a + self.shiftX, row*a + a + self.shiftY, 
+                             fill = 'red', lineWidth = 5)
+                if leftN not in neighbors:
+                    #app.canPassLeft
+                    drawLine(col*a + self.shiftX, row*a + self.shiftY, 
+                             col*a + self.shiftX, row*a + a + self.shiftY, 
+                             fill = 'red', lineWidth = 5)
+                if rightN not in neighbors:
+                    # app.canPassRight = True
+                    drawLine(col*a + a + self.shiftX, row*a + self.shiftY, 
+                             col*a + a + self.shiftX, row*a + a + self.shiftY, 
+                             fill = 'red', lineWidth = 5)
+                    
+
+class Bagpipe:
+    def __init__(self,app):
+        self.row = 5
+        self.col = 5
+        self.app = app
+        #CITATION:
+        #https://www.pngitem.com/middle/mJmT_bagpipes-transparent-background-hd
+        # -png-download/
+        self.image = Image.open('bagpipes.png')
+        self.image = CMUImage(self.image)
+   
+
+    
+    def draw(self):
+        drawImage(self.image, self.app.bagpipe_x, self.app.bagpipe_y, width=30, 
+                  height=30, align = 'center')
+    
+
+def drawGraph(graph):
+    for parent in graph:
+        for node in graph[parent]:
+            x,y = getGraphCoords(node)
+            drawOval(x,y,10,10,fill='black')
+
+def onStep(app):
+    app.scotty.score = -1
+
+    if app.powerup.poweredUp == True:
+        print('plus 2')
+        app.scotty.score+=2
+    for row in range(app.rows):
+        for col in range(app.cols):
+            if app.treatList[row][col] == False:
+                print('plus 1')
+                app.scotty.score+=1
+    
+    if app.scotty.score>=65:
+        app.win=True
+
+    if app.gameMode == 'Start':
+        chaseScotty(app)
+    app.scotty_row, app.scotty_col = convertCoordsToNode(app.scotty, 
+                                                    app.scotty.x, app.scotty.y)
+ 
+def main():
+    runApp()
+
+main()
+
+    
+
+
+
+ 
+
+
+
+
+
+
+
