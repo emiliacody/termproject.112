@@ -1,12 +1,48 @@
-Mia Cody
-112 Term Project: Scotty-Man
+# Scotty-Man 🐾
 
-My game is called Scotty-Man which is a Pac-Man inspired interactive game! The user controls Scotty's movement as it traverses through a randomly generated maze using DFS backtracking, collecting treats (dog bones) along the way! The user's score increases each bone that he/she picks up, and there is a tennis ball randomly placed somewhere on the maze that is a power up. Scotty is awarded three points at this power up! An enemy, which are bagpipes in my game, that use BFS pathfinding to locate the scotty dog. When hit, the player loses and may restart. 
+A Pac-Man-inspired Python game built as my Carnegie Mellon 15-112 term project. Guide Scotty through a randomly generated maze, collect dog bones and a tennis-ball bonus, and avoid the bagpipe enemy.
 
-To run the game, the user must have cmugraphics installed and the attached images in this folder in their file to run the game.
+## Technical highlights
 
-One shortcut command is pressing 'r' to restart the game. This starts the game over and restarts score at 0.
+- **Randomized depth-first search:** recursive backtracking builds an 8 × 8 maze, represented as an adjacency dictionary of connected cells.
+- **Breadth-first search:** the enemy searches a separate grid graph to pursue the player. Its graph is distinct from the maze's wall layout.
+- **Event-driven gameplay:** CMU Graphics callbacks handle keyboard input, rendering, scoring, and enemy movement.
+- **Object-oriented structure:** separate classes represent the player, maze, collectibles, and enemy.
 
-All fonts used are within the scope of cmugraphics.
+## Controls
 
-There is one python file attached. I did my best to organize classes/my code, and in the future I will implement this practice to ensure easier experience for a user.
+| Input | Action |
+| --- | --- |
+| Click Scotty on the start screen | Start |
+| Arrow keys | Move through open passages |
+| `r` | Restart with a new maze |
+
+## Source and setup
+
+The original implementation is in [`ecodyTP`](ecodyTP), an extensionless Python source file. It currently begins with repository-initialization shell commands; those lines must be removed before running it as Python.
+
+The project uses **Python, CMU Graphics, and Pillow**. See the [CMU Graphics desktop setup](https://academy.cs.cmu.edu/desktop).
+
+The following images are referenced by the code but are **not included in this repository**:
+
+- `scootyAnimate.png`
+- `transparentBall.png`
+- `dogBone.png`
+- `bagpipes.png`
+
+To run a local copy, restore those assets beside the source, remove the opening shell commands, and save the Python portion as `scotty_man.py`. From that folder:
+
+```sh
+python -m pip install cmu-graphics Pillow
+python scotty_man.py
+```
+
+**Status:** original course-project snapshot; a clean installation and gameplay session have not yet been revalidated. The current repository is not a complete, ready-to-run distribution.
+
+## What this project explores
+
+Connecting graph algorithms to an interactive application: turning a maze into connected cells, translating between screen and grid coordinates, and coordinating player input with a moving enemy.
+
+## Credits
+
+Created by Emilia (Mia) Cody for CMU 15-112. The original source includes references for maze generation, BFS, and external images. Those citations remain in the code; third-party artwork is not claimed as original work.
